@@ -96,7 +96,7 @@ jobs:
           ./Build_Kernel_sm8750.sh <<< $'\n$KERNEL_SUFFIX\n$KERNEL_TIME\n$ENABLE_KPM\n$ENABLE_LZ4KD\n'
 
       - name: Upload Kernel ZIP
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Kernel-ZIP-${{ github.event.inputs.device }}
           path: $HOME/kernel_${{ env.DEVICE_NAME }}/AnyKernel3/*.zip

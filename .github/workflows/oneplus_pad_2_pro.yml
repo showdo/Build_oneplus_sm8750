@@ -1,81 +1,84 @@
-name: oneplus_pad_2_pro
-on:
-  workflow_dispatch:
-    inputs:
-      KERNEL_SUFFIX:
-        description: '内核名称修改(可改中文和emoji)'
-        required: true
-        default: '-android15-8-g013ec21bba94-abogki383916444-4k'
-      KERNEL_TIME:
-       description: "内核构建日期更改(默认为原厂)"
-       required: true
-       default: 'Wed Dec 4 02:11:46 UTC 2024'
-      enable_feature_x:
-       description: "启用kpm"
-       required: false
-       default: true
-       type: boolean
-      enable_feature_y:
-       description: "启用lz4+zstd"
-       required: false
-       default: true
-       type: boolean
-      enable_feature_z:
-       description: "是否添加风驰驱动"
-       required: false
-       default: true
-       type: boolean
+名称：一加平板2 Pro
+在输入：
+
+    输入：
+      内核后缀：
+        描述: '内核名称修改(可改中文和emoji)'
+        必需： 真
+        默认： '-android15-8-g013ec21bba94-abogki383916444-4k'
+      内核时间：
+       描述："内核构建日期更改（默认为原厂）"
+       必需： 真
+       默认：'Wed Dec 4 02:11:46 UTC 2024'
+      启用功能X：
+       描述: "启用kpm"
+       必需： 否
+       默认：真
+       类型：布尔
+      启用功能y：
+       描述："启用lz4+zstd"
+       必需： 否
+       默认：真
+       类型：布尔
+      启用功能Z：
+       描述: "是否添加风驰驱动"
+       必需： 否
+       默认：真
+       类型：布尔
       
        
 
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    env:
-      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_HARDLINK: "true"
-      CCACHE_DIR: /home/runner/.ccache  
-      CCACHE_MAXSIZE: 8G
-    steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 8192
-          temp-reserve-mb: 2048
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
+工作：
+  构建：
+    运行于：ubuntu-latest
+    环境：
+      CCACHE_COMPILERCHECK："%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR："真"
+      CCACHE_HARDLINK："真"
+      CCACHE_DIR：
+      CCACHE_DIR：/home/runner/.ccache  
+      CCACHE_MAXSIZE：
+      CCACHE_MAXSIZE：8G
+    步骤：
+      - 名字:       - 名称: 最大化构建空间
+        用途：        使用: easimon/最大化建造空间@主分支
+        与：
+          根保留兆字节：8192
+          临时保留兆字节：2048
+          移除DotNet：'true'
+          移除安卓：'真'
+          移除Haskell：'true'
+          移除-代码查询语言：'true'
           
-      - name: Configure Git
-        run: |
+      - 名字:       - name: 配置 Git
+        运行：|
          git config --global user.name "Q1udaoyu"
          git config --global user.email "sucisama2888@gmail.com"
 
-      - name: Install dependencies
+- name:
+       - name: 安装依赖项: 安装依赖项
         run: |
           sudo apt update && sudo apt upgrade -y
           sudo apt install -y python3 git curl
           sudo apt install -y python3 git curl ccache
 
-      - name: Restore ccache
-        uses: actions/cache@v3
+      - name:       - name: 恢复 ccache
+        uses:         使用: actions/cache@v3
         with:
-          path: /home/runner/.ccache
-          key: ccache-${{ runner.os }}-${{ github.ref }}
+          path:           路径: /home/runner/.ccache
+          key:           key: ccache-${{ runner.os }}-${{ github.ref }}{{ runner.os }}-${{ github.ref }}
           restore-keys: |
             ccache-${{ runner.os }}-
 
-      - name: Install repo tool
+      - name:       - name: 安装仓库工具
         run: |
          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
          chmod a+x ~/repo
          sudo mv ~/repo /usr/local/bin/repo
 
-      - name: Initialize repo and sync
-        run: |
+      - name:       - name: 初始化仓库并同步
+        运行: |
          mkdir kernel_workspace && cd kernel_workspace
          repo init -u https://github.com/HanKuCha/kernel_manifest.git -b refs/heads/oneplus/sm8750 -m oneplus_pad_2_pro.xml --depth=1
          repo --trace sync -c -j$(nproc --all) --no-tags

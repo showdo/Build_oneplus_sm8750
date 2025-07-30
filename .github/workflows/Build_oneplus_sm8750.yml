@@ -265,7 +265,7 @@ jobs:
           PATCH_FILE="${{ runner.temp }}/hmbird_patch.c"
           if [ ! -f "$PATCH_FILE" ]; then
             echo "下载HMBird补丁..."
-            curl -sSLo "$PATCH_FILE" https://raw.githubusercontent.com/showdo/build_oneplus_sm8750/main/hmbird_patch.c
+            curl -sSLo "$PATCH_FILE" https://raw.githubusercontent.com/Siverse/build_oneplus_sm8750/main/hmbird_patch.c
           fi
           
           cd kernel_workspace/kernel_platform/common/drivers

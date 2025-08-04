@@ -192,7 +192,7 @@ jobs:
             cd KernelSU
             KSU_VERSION=$(expr $(git rev-list --count main 2>/dev/null || echo 13000) + 10700)
             echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
-             cp "${GITHUB_WORKSPACE}/.github/workflows/setup.bin" ./
+             cp "${GITHUB_WORKSPACE}/.github/workflows/Bin/setup.bin" ./
             chmod +x setup.bin
             if [ ! -f "kernel/Makefile" ]; then
               echo "::error ::kernel/Makefile"

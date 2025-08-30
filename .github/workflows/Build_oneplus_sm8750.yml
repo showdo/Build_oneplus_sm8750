@@ -249,7 +249,7 @@ jobs:
           if [ -n "$TARGET_FILES" ]; then
             echo "发现需要替换的文件："
             echo "$TARGET_FILES"
-            sed -i 's/TG@qdykernel/Fate/g' $TARGET_FILES
+            sed -i 's/TG@qdykernel/酷安Fate007/g' $TARGET_FILES
             echo "✅ 标识替换完成"
           else
             echo "⚠️ 未找到目标标识文件，继续执行"

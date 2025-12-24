@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       DEVICES_NAME:
-        description: "📝请选择要编译的机型："
+        description: "📝 コンパイルする機種を選択："
         required: true
         type: choice
         options:
@@ -20,41 +20,59 @@ on:
         default: 'oneplus_ace5_pro'
 
       keep_original_settings:
-        description: "📝保持原内核名称及构建时间(不懂请保持默认)"
+        description: "📝 元のカーネル名とビルド時間を保持する"
         required: false
         default: true
         type: boolean
 
       custom_kernel_suffix:
-        description: "✏️ 自定义内核名称- 仅在取消勾选'保持原设置'时有效(不懂请保持默认)"
+        description: "✏️ カスタムカーネル名 (保持設定OFF時のみ有効)"
         required: false
         default: ''
       
       custom_kernel_time:
-        description: "⏰ 自定义构建时间- 仅在取消勾选'保持原设置'时有效(不懂请保持默认)"
+        description: "⏰ カスタムビルド時間 (保持設定OFF時のみ有効)"
         required: false
         default: ''
 
+      enable_ksu:
+        description: "⭕ KernelSU (Root権限) を有効化（OFFで完全純正化）"
+        required: false
+        default: true
+        type: boolean
+
+      enable_susfs:
+        description: "🛡️ SusFS (隠蔽・モジュール機能拡張) を有効化 ※ブートループ時はOFF推奨"
+        required: false
+        default: true
+        type: boolean
+
       enable_scx:
-        description: "添加完美风驰"
+        description: "Fengchi (Sched Patch) を追加"
         required: false
         default: true
         type: boolean
 
       enable_bbg:
-        description: "开启BBG基带守护"
+        description: "BBG (Baseband-guard) を有効化"
         required: false
         default: true
         type: boolean
         
       enable_hymo:
-        description: "添加Hymo实现(高性能混合挂载元模块)"
+        description: "Hymo実装を追加"
+        required: false
+        default: true
+        type: boolean
+
+      enable_kernel_rescue:
+        description: "🚑 救出モード (Inputドライバ強制組み込み)"
         required: false
         default: true
         type: boolean
 
       enable_network:
-         description: "选择网络调度"
+         description: "ネットワークスケジューラ"
          required: false
          type: choice
          options:
@@ -62,9 +80,6 @@ on:
             - 'BBR'
          default: 'FQ_CODEL'
       
-       
-
-
 jobs:
   build:
     name: Build_${{ github.event.inputs.DEVICES_NAME }}
@@ -74,15 +89,18 @@ jobs:
       KEEP_ORIGINAL_SETTINGS: ${{ github.event.inputs.keep_original_settings }}
       CUSTOM_KERNEL_SUFFIX:   ${{ github.event.inputs.custom_kernel_suffix }}
       CUSTOM_KERNEL_TIME:     ${{ github.event.inputs.custom_kernel_time }}
-      ENABLE_SCX:       ${{ github.event.inputs.enable_scx }}
-      ENABLE_BBG:       ${{ github.event.inputs.enable_bbg }}
-      ENABLE_NETWORK:       ${{ github.event.inputs.enable_network }}
+      ENABLE_KSU:             ${{ github.event.inputs.enable_ksu }}
+      ENABLE_SUSFS:           ${{ github.event.inputs.enable_susfs }}
+      ENABLE_SCX:             ${{ github.event.inputs.enable_scx }}
+      ENABLE_BBG:             ${{ github.event.inputs.enable_bbg }}
+      ENABLE_NETWORK:         ${{ github.event.inputs.enable_network }}
       ENABLE_HYMO:            ${{ github.event.inputs.enable_hymo }}
+      ENABLE_RESCUE:          ${{ github.event.inputs.enable_kernel_rescue }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: ⚙️ Set REPO_MANIFEST (设置对应机型配置文件)
+      - name: ⚙️ Set REPO_MANIFEST (機種別構成ファイルの設定)
         run: |
           case "${{ env.DEVICES_NAME }}" in
             oneplus_ace5_pro)
@@ -137,9 +155,9 @@ jobs:
               echo 'DEFAULT_SUFFIX=-android15-8-g29d86c5fc9dd-abogki428889875-4k' >> $GITHUB_ENV
               ;;
           esac
-            echo "使用原官核名称：${{ env.DEFAULT_SUFFIX }}"
+            echo "元の公式カーネル名を使用：${{ env.DEFAULT_SUFFIX }}"
           else
-            echo "使用自定义名称: ${{ github.event.inputs.custom_kernel_suffix }}"
+            echo "カスタム名称を使用: ${{ github.event.inputs.custom_kernel_suffix }}"
             echo "DEFAULT_SUFFIX=${{ github.event.inputs.custom_kernel_suffix }}" >> $GITHUB_ENV
           fi
           if [ "${{ env.KEEP_ORIGINAL_SETTINGS }}" = "true" ] && [ -z "${{ github.event.inputs.custom_kernel_time }}" ]; then
@@ -157,13 +175,13 @@ jobs:
                 echo 'KERNEL_TIME=Tue Jul  1 19:48:18 UTC 2025' >> $GITHUB_ENV
                 ;;
             esac
-            echo "使用官核时间: ${{ env.KERNEL_TIME }}"
+            echo "公式カーネル時間を使用: ${{ env.KERNEL_TIME }}"
           else
-            echo "使用自定义构建时间: ${{ github.event.inputs.custom_kernel_time }}"
+            echo "カスタムビルド時間を使用: ${{ github.event.inputs.custom_kernel_time }}"
             echo "KERNEL_TIME=${{ github.event.inputs.custom_kernel_time }}" >> $GITHUB_ENV
           fi
 
-      - name: 🛠 Install dependencies and Initialize repo and sync （安装环境依赖+初始化源码仓库及工具链）
+      - name: 🛠 Install dependencies and Initialize repo and sync （依存関係とRepo初期化）
         run: |
           rm -rf kernel_workspace
           mkdir kernel_workspace
@@ -175,7 +193,7 @@ jobs:
           sudo rm -rf /var/lib/man-db/auto-update &&
           sudo apt update &&
           sudo apt-get install -y --no-install-recommends binutils python-is-python3 libssl-dev libelf-dev dos2unix ccache p7zip-full &
-          echo "正在克隆源码仓库..."
+          echo "ソースコードをクローン中..."
           if [ "${DEVICES_NAME}" = "realme_GT7pro" ] || [ "${DEVICES_NAME}" = "realme_GT7pro_Speed" ] || [ "${DEVICES_NAME}" = "realme_GT8" ]; then
             aria2c -s16 -x16 -k1M https://github.com/realme-kernel-opensource/realme_GT7pro-AndroidB-common-source/archive/refs/heads/master.zip -o common.zip
             unzip -q common.zip && 
@@ -190,33 +208,32 @@ jobs:
             mv "android_kernel_common_oneplus_sm8750-oneplus-${REPO_MANIFEST}" common
           fi
           rm -rf common.zip 
-          echo "正在克隆llvm-clang18工具链..."
+          echo "llvm-clang18ツールチェーンをクローン中..."
           mkdir -p clang18 &&
           aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/clang-r510928.zip -o clang.zip &&
           unzip -q clang.zip -d clang18 &&
           rm -rf clang.zip &
-          echo "正在克隆构建工具..." &&
+          echo "ビルドツールをクローン中..." &&
           aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip -o build-tools.zip &&
           unzip -q build-tools.zip &&
           rm -rf build-tools.zip &
           wait
-          echo "所有源码及llvm-Clang18工具链初始化完成！"
-          echo "正在去除 ABI 保护 & 去除 dirty 后缀..."
+          echo "初期化完了！"
+          echo "ABI保護の解除 & dirtyサフィックスの削除..."
           rm common/android/abi_gki_protected_exports_* || true
           for f in common/scripts/setlocalversion; do
             sed -i 's/ -dirty//g' "$f"
             sed -i '$i res=$(echo "$res" | sed '\''s/-dirty//g'\'')' "$f"
           done
           
-      - name: 🛠 Set ccache DIR(配置ccache目录)
+      - name: 🛠 Set ccache DIR (ccache設定)
         run: |
           echo "CCACHE_DIR=$HOME/.ccache_${{ env.DEVICES_NAME }}" >> $GITHUB_ENV
           echo "CCACHE_MAXSIZE=3G" >> $GITHUB_ENV
-          echo "当前磁盘空间："
+          echo "現在のディスク容量："
           df -h
-          echo "当前构建内核机型：${{ env.DEVICES_NAME }}"
 
-      - name: 📥 Restore ccache (载入当前机型的ccache缓存)
+      - name: 📥 Restore ccache (ccache復元)
         uses: actions/cache@v4
         id: ccache-restore
         with:
@@ -226,37 +243,25 @@ jobs:
             ccache-neov2-${{ env.DEVICES_NAME }}-${{ runner.os }}-
             ccache-neov2-${{ env.DEVICES_NAME }}-
       
-      - name: 📥 Init ccache (初始化配置ccache)
+      - name: 📥 Init ccache (ccache初期化)
         run: |
-          # 设置ccache环境变量
           export CCACHE_COMPILERCHECK="none"
           export CCACHE_BASEDIR="${{ github.workspace }}"
           export CCACHE_NOHASHDIR="true"
           export CCACHE_HARDLINK="true"
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           export CCACHE_MAXSIZE="${{ env.CCACHE_MAXSIZE }}"
-          
-          # 确保ccache目录存在
           mkdir -p "$CCACHE_DIR"
-          
-          # 每次运行都重新配置缓存大小
-          echo "配置ccache缓存大小为: $CCACHE_MAXSIZE"
           ccache -M "$CCACHE_MAXSIZE"
           ccache -o compression=true
-          
-          # 显示初始缓存状态
-          echo "ccache初始状态:"
           ccache -s
-          
-          # 如果缓存恢复命中，显示详细信息
           if [ "${{ steps.ccache-restore.outputs.cache-hit }}" == 'true' ]; then
-            echo "ccache缓存命中详情:"
             ccache -sv
           fi
          
-      - name: 🔧 apply lz4 1.10.0 & zstd 1.5.7 patches (添加lz4 1.10.0 & zstd 1.5.7补丁)
+      - name: 🔧 apply lz4 & zstd patches (圧縮関連パッチ)
         run: |
-          echo "正在添加lz4 1.10.0 & zstd 1.5.7补丁…"
+          echo "lz4 & zstd パッチ適用中…"
           cd kernel_workspace
           git clone https://github.com/cctv18/oppo_oplus_realme_sm8750.git
           cp ./oppo_oplus_realme_sm8750/zram_patch/001-lz4.patch ./common
@@ -266,79 +271,51 @@ jobs:
           git apply -p1 < 001-lz4.patch || true
           patch -p1 < 002-zstd.patch || true
           
-      - name: 🔧 Set Baseband-guard (开启BBG基带守护)
+      - name: 🔧 Set Baseband-guard (BBG有効化)
         if: ${{ env.ENABLE_BBG == 'true' }}
         run: |
           cd kernel_workspace/common
-          echo "正在启用BBG基带守护…"
+          echo "BBGを有効化中…"
           curl -LSs https://raw.githubusercontent.com/vc-teahouse/Baseband-guard/main/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/lockdown/lockdown,baseband_guard/ } }' ./security/Kconfig
 
           
-      - name: ⚙️ Set SuKiSU Ultra (设置SuKiSU Ultra)
+      - name: ⚙️ Set SuKiSU Ultra (SuKiSU Ultraセットアップ)
+        if: ${{ env.ENABLE_KSU == 'true' }}
         run: |
           cd kernel_workspace
-          echo "正在配置SukiSU Ultra..."
+          echo "SukiSU Ultraをセットアップ中..."
           curl -LSs "https://raw.githubusercontent.com/ShirkNeko/SukiSU-Ultra/refs/heads/main/kernel/setup.sh" | bash -s builtin
           cd ./KernelSU
-          # 获取当前 Git 提交的短哈希 (8位)
           GIT_COMMIT_HASH=$(git rev-parse --short=8 HEAD)
-          echo "当前提交哈希: $GIT_COMMIT_HASH"
+          echo "Commit Hash: $GIT_COMMIT_HASH"
           export KSU_VERSION=$KSU_VERSION
-          # 尝试最多 3 次获取 KernelSU API 版本号
+          # バージョン取得
           for i in {1..3}; do
-            # 从远程 Kbuild 中提取 KSU_API_VERSION
-            KSU_API_VERSION=$(curl -s "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/Kbuild" | 
-              # 查找第一个包含版本定义的行
-              grep -m1 "KSU_VERSION_API :=" | 
-              # 提取等号后的值
-              awk -F'= ' '{print $2}' | 
-              # 删除所有空白字符
-              tr -d '[:space:]')
-            # 如果成功获取到版本号则跳出循环，否则等待 1 秒后重试
+            KSU_API_VERSION=$(curl -s "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/Kbuild" | grep -m1 "KSU_VERSION_API :=" | awk -F'= ' '{print $2}' | tr -d '[:space:]')
             [ -n "$KSU_API_VERSION" ] && break || sleep 1
           done
-          # 如果获取失败，使用默认版本号 3.1.7
           [ -z "$KSU_API_VERSION" ] && KSU_API_VERSION="3.1.7"
-          # 将 API 版本号存储到 GitHub 环境变量
           echo "KSU_API_VERSION=$KSU_API_VERSION" >> $GITHUB_ENV
-          # 创建版本定义模板&版本格式函数: 使用获取的提交哈希和固定后缀
-          # KSU_VERSION_API: API 版本定义
-          # KSU_VERSION_FULL: 完整版本定义
+          
+          # バージョン定義の書き換え
           VERSION_DEFINITIONS=$'define get_ksu_version_full\nv\\$1-'"$GIT_COMMIT_HASH"$'-TG@qdykernel\nendef\n\nKSU_VERSION_API := '"$KSU_API_VERSION"$'\nKSU_VERSION_FULL := v'"$KSU_API_VERSION"$'-'"$GIT_COMMIT_HASH"$'-TG@qdykernel'
-          # 清理内核 Kbuild 中的旧版本定义
-          # 删除版本函数
           sed -i '/define get_ksu_version_full/,/endef/d' kernel/Kbuild
-          # 删除 API 版本定义
           sed -i '/KSU_VERSION_API :=/d' kernel/Kbuild
-          # 删除完整版本定义
           sed -i '/KSU_VERSION_FULL :=/d' kernel/Kbuild
-          # 在 REPO_OWNER 行后插入新版本定义
-          awk -v def="$VERSION_DEFINITIONS" '
-            # 当找到 REPO_OWNER 行时，插入版本定义并设置标记
-            /REPO_OWNER :=/ {print; print def; inserted=1; next}
-            # 打印所有行
-            1
-            # 如果未找到插入点，在文件末尾追加
-            END {if (!inserted) print def}
-          ' kernel/Kbuild > kernel/Kbuild.tmp && mv kernel/Kbuild.tmp kernel/Kbuild
+          awk -v def="$VERSION_DEFINITIONS" '/REPO_OWNER :=/ {print; print def; inserted=1; next} 1 END {if (!inserted) print def}' kernel/Kbuild > kernel/Kbuild.tmp && mv kernel/Kbuild.tmp kernel/Kbuild
 
-          # 生成自定义版本号（基于提交计数）, 失败时使用 114514
           KSU_VERSION=$(expr $(git rev-list --count main) + 37185 2>/dev/null || echo 114514)
-          # 存储版本号到 GitHub 环境变量
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
           echo "ksuver=$KSU_VERSION" >> $GITHUB_OUTPUT
-
-          # 验证修改结果
-          grep -A10 "REPO_OWNER" kernel/Kbuild  # 检查插入点后的内容
-          grep "KSU_VERSION_FULL" kernel/Kbuild # 确认版本定义存在
-          echo "SukiSU版本号: v${KSU_API_VERSION}-${GIT_COMMIT_HASH}-TG@qdykernel"
+          echo "SukiSU Version: v${KSU_API_VERSION}-${GIT_COMMIT_HASH}-TG@qdykernel"
 
             
-      - name: 🔧 Set up SUSFS (配置 SUSFS)
+      - name: 🔧 Set up SUSFS (SUSFSセットアップ)
+        if: ${{ env.ENABLE_KSU == 'true' && env.ENABLE_SUSFS == 'true' }}
         run: |
           cd kernel_workspace
-          echo "正在添加SukiSU Ultra补丁..."
+          echo "SUSFSパッチを適用中..."
           git clone https://github.com/ShirkNeko/susfs4ksu.git -b gki-android15-6.6
           git clone https://github.com/ShirkNeko/SukiSU_patch.git
           cp ./susfs4ksu/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch ./common/
@@ -348,20 +325,17 @@ jobs:
           cd ./common
           patch -p1 < 50_add_susfs_in_gki-android15-6.6.patch || true
           if [ "${{ env.ENABLE_HYMO }}" = "true" ]; then
-            echo "添加Hymo-高性能混合挂载元模块"
+            echo "HymoFSパッチ適用"
             wget https://raw.githubusercontent.com/Anatdx/HymoFS/refs/heads/main/patch/hymofs_with_susfs.patch
             patch -p1 -F 3 < hymofs_with_susfs.patch
             echo "CONFIG_HYMOFS=y" >> ./arch/arm64/configs/gki_defconfig
           fi
 
-
-
-          
-      - name: 🔧 Set gki_defconfig (设置编译配置) 
+      - name: 🔧 Set gki_defconfig (ビルド構成) 
         run: |
           cd kernel_workspace
-          echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KPM=y" >> ./common/arch/arm64/configs/gki_defconfig
+          
+          # 基本設定
           echo "CONFIG_CRYPTO_LZ4=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_CRYPTO_LZ4HC=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_CRYPTO_LZ4KD=y" >> ./common/arch/arm64/configs/gki_defconfig
@@ -374,68 +348,71 @@ jobs:
           echo "CONFIG_ZRAM=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_ZRAM_WRITEBACK=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_SWAP=y" >> ./common/arch/arm64/configs/gki_defconfig
+          
+          # KernelSU設定 (有効時のみ)
+          if [ "${{ env.ENABLE_KSU }}" = "true" ]; then
+            echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KPM=y" >> ./common/arch/arm64/configs/gki_defconfig
+          fi
 
+          # ネットワーク設定
           if [ "${{ env.ENABLE_NETWORK }}" = "BBR" ]; then
             echo "CONFIG_TCP_CONG_ADVANCED=y" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_TCP_CONG_BBR=y" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_NET_SCH_FQ=y" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_TCP_CONG_BIC=n" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_TCP_CONG_CUBIC=n" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_TCP_CONG_WESTWOOD=n" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_TCP_CONG_HTCP=n" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_DEFAULT_TCP_CONG=bbr" >> ./common/arch/arm64/configs/gki_defconfig
           fi
           if [ "${{ env.ENABLE_NETWORK }}" = "FQ_CODEL" ]; then
             echo "CONFIG_NET_SCH_FQ_CODEL=y" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_NET_SCH_FQ=y" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NET_SCH_SFQ=y" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NET_SCH_HTB=y" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NET_SCH_TBF=y" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NET_SCH_SFB=y" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NET_SCH_RED=y" >> ./common/arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NET_SCH_INGRESS=y" >> ./common/arch/arm64/configs/gki_defconfig
             echo "CONFIG_DEFAULT_FQ_CODEL=y" >> ./common/arch/arm64/configs/gki_defconfig
             echo 'CONFIG_DEFAULT_NET_SCH="fq_codel"' >> ./common/arch/arm64/configs/gki_defconfig
           fi
-          echo "CONFIG_IP_ECN=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_TCP_ECN=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_IPV6_ECN=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_IP_NF_TARGET_ECN=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> ./common/arch/arm64/configs/gki_defconfig
+          
+          # SusFS設定 (KSUとSusFS両方が有効時のみ)
+          if [ "${{ env.ENABLE_KSU }}" = "true" ] && [ "${{ env.ENABLE_SUSFS }}" = "true" ]; then
+            echo "CONFIG_KSU_SUSFS=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_KSU_SUSFS_SUS_MAP=y" >> ./common/arch/arm64/configs/gki_defconfig
+          fi
+
           echo "CONFIG_TMPFS_XATTR=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_TMPFS_POSIX_ACL=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_TMPFS=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_HEADERS_INSTALL=n" >> ./common/arch/arm64/configs/gki_defconfig
-          #Remove check_defconfig
+          
+          # 救出モード: Inputドライバを組み込み (Volキー用)
+          if [ "${{ env.ENABLE_RESCUE }}" = "true" ]; then
+            echo "CONFIG_INPUT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_INPUT_EVDEV=y" >> ./common/arch/arm64/configs/gki_defconfig
+          fi
+
           sudo sed -i 's/check_defconfig//' ./common/build.config.gki
 
-      - name: 🔧 Set Kernel name (设置内核名称)
+      - name: 🔧 Set Kernel name (カーネル名設定)
         run: |
           cd kernel_workspace
-          echo "内核后缀: $DEFAULT_SUFFIX"
           ESCAPED_SUFFIX=$(printf '%s\n' "$DEFAULT_SUFFIX" | sed 's:[\/&]:\\&:g')
           sudo sed -i "s/-4k/$ESCAPED_SUFFIX/g" ./common/arch/arm64/configs/gki_defconfig
           sed -i 's/${scm_version}//' ./common/scripts/setlocalversion
           
-      - name: 🔧 Apply Sched Patch (应用完美风驰补丁)
+      - name: 🔧 Apply Sched Patch (Fengchi適用)
         run: |
           if [ "${{ env.ENABLE_SCX }}" = "true" ]; then
             if [ "$SCHED_FILE" = "none" ]; then
-              echo "该机型自带风驰，跳过应用补丁"
+              echo "Fengchiスキップ（内蔵済み）"
             else
               cd kernel_workspace/common
               if [ "${DEVICES_NAME}" = "oneplus_ace5_ultra" ] || [ "${DEVICES_NAME}" = "realme_GT7" ]; then
@@ -443,37 +420,27 @@ jobs:
               else
                 git clone https://github.com/Numbersf/SCHED_PATCH.git -b "sm8750"
               fi
-              echo "正在拉取风驰补丁"
               cp ./SCHED_PATCH/fengchi_${{env.SCHED_FILE}}.patch ./
               if [[ -f "fengchi_${{env.SCHED_FILE}}.patch" ]]; then
-                echo "开始应用风驰补丁"
                 dos2unix "fengchi_${{env.SCHED_FILE}}.patch"
                 patch -p1 -F 3 < "fengchi_${{env.SCHED_FILE}}.patch"
-                echo "完美风驰补丁应用完成"
               else
-                echo "❌ 未匹配到补丁，风驰补丁暂未支持该机型"
+                echo "❌ Fengchiパッチ未対応"
                 exit 11
               fi
             fi
           else
-            echo "未启用风驰，则需应用OGKI转换GKI补丁"
+             # Fengchi無効時はOGKI->GKI変換
               sed -i '1iobj-y += hmbird_patch.o' drivers/Makefile
                cp "${GITHUB_WORKSPACE}/.github/workflows/Bin/hmbird_patch.patch" ./hmbird_patch.patch
-              echo "正在打OGKI转换GKI补丁"
               patch -p1 -F 3 < hmbird_patch.patch
-              echo "OGKI转换GKI_patch完成"
           fi
 
-      - name: 🔨 Build Kernel (构建内核)
+      - name: 🔨 Build Kernel (ビルド実行)
         run: |
           WORKDIR="$(pwd)"
-          export PATH="/usr/lib/ccache:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/clang18/bin:$PATH"
-          export PATH="$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
+          export PATH="/usr/lib/ccache:$PATH:$WORKDIR/kernel_workspace/clang18/bin:$WORKDIR/kernel_workspace/build-tools/bin:$PATH"
           CLANG_DIR="$WORKDIR/kernel_workspace/clang18/bin"
-          CLANG_VERSION="$($CLANG_DIR/clang --version | head -n 1)"
-          LLD_VERSION="$($CLANG_DIR/ld.lld --version | head -n 1)"
-          pahole_version=$(pahole --version 2>/dev/null | head -n1); [ -z "$pahole_version" ] && echo "pahole版本：未安装" || echo "pahole版本：$pahole_version"
           export CCACHE_LOGFILE="${{ github.workspace }}/kernel_workspace/ccache.log"
           export CCACHE_COMPILERCHECK="none"
           export CCACHE_BASEDIR="${{ github.workspace }}"
@@ -482,7 +449,9 @@ jobs:
           export CCACHE_DIR="${{ env.CCACHE_DIR }}"
           export CCACHE_MAXSIZE="3G"
           echo "sloppiness = file_stat_matches,include_file_ctime,include_file_mtime,pch_defines,file_macro,time_macros" >> "$CCACHE_DIR/ccache.conf"
+          
           cd kernel_workspace/common
+          # フェイク時刻・統計ライブラリのセットアップ (ビルド再現性向上)
           wget https://github.com/cctv18/oppo_oplus_realme_sm8750/raw/refs/heads/main/lib/libfakestat.so
           wget https://github.com/cctv18/oppo_oplus_realme_sm8750/raw/refs/heads/main/lib/libfaketimeMT.so
           chmod 777 ./*.so
@@ -492,45 +461,43 @@ jobs:
           echo "FAKETIME=$FAKETIME" >> $GITHUB_ENV
           SO_DIR=$(pwd)
           export PRELOAD_LIBS="$SO_DIR/libfakestat.so $SO_DIR/libfaketimeMT.so"
+          
+          # ラッパースクリプト作成
           echo '#!/bin/bash' > cc-wrapper
           echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> cc-wrapper
           echo 'export FAKESTAT="'$FAKESTAT'"' >> cc-wrapper
           echo 'export FAKETIME="'$FAKETIME'"' >> cc-wrapper
           echo 'ccache clang "$@"' >> cc-wrapper
+          
           echo '#!/bin/bash' > ld-wrapper
           echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> ld-wrapper
           echo 'export FAKESTAT="'$FAKESTAT'"' >> ld-wrapper
           echo 'export FAKETIME="'$FAKETIME'"' >> ld-wrapper
           echo 'ld.lld "$@"' >> ld-wrapper
-          echo '#!/bin/bash' > test-wrapper.sh
-          echo 'export LD_PRELOAD="'$PRELOAD_LIBS'"' >> test-wrapper.sh
-          echo 'export FAKESTAT="'$FAKESTAT'"' >> test-wrapper.sh
-          echo 'export FAKETIME="'$FAKETIME'"' >> test-wrapper.sh
-          echo 'echo ">>> Wrapper 内部环境检查完毕."' >> test-wrapper.sh
-          echo 'exec "$@"' >> test-wrapper.sh
-          chmod +x test-wrapper.sh
-          ./test-wrapper.sh date
-          ./test-wrapper.sh stat ./Makefile
+          
           chmod +x cc-wrapper ld-wrapper
-          LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
+          
           export KBUILD_BUILD_TIMESTAMP="${KERNEL_TIME}"
+          
+          # 不要なツール削除で空き容量確保
           sudo rm -rf /usr/share/dotnet &
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
+          
+          # ビルド開始
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig &&
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
-          LD_PRELOAD=$PRELOAD_LIBS stat ./Makefile
-          echo "ccache状态："
+          
           ccache -s
-      - name: 📦 Make AnyKernel3 (创建Anykernel3)
+      - name: 📦 Make AnyKernel3
         run: |
           cp "${GITHUB_WORKSPACE}/.github/workflows/Bin/main.bin" ./
           chmod +x main.bin
           ./main.bin "make_anykernel3"
           rm -rf ./main.bin
           
-      - name: 📤 Upload AnyKernel3 (上传 Anykernel3)
+      - name: 📤 Upload AnyKernel3
         uses: actions/upload-artifact@v4
         with:
          name: AK3_${{ env.KSUVER }}_${{ env.DEVICES_NAME }}_SuKiSU
